@@ -1,8 +1,8 @@
-import 'dotenv/config'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
+import dotenv from 'dotenv'
 import express from 'express'
 import {
   renderScenePng,
@@ -21,6 +21,11 @@ import type {
 } from '../src/types'
 
 type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+const rootDir = process.cwd()
+
+dotenv.config({ path: path.resolve(rootDir, '.env') })
+dotenv.config({ path: path.resolve(rootDir, '.env.local'), override: true })
 
 interface GenerationJob {
   jobId: string
@@ -115,9 +120,8 @@ class JobCancelledError extends Error {
   }
 }
 
-const rootDir = process.cwd()
 const app = express()
-const port = 4174
+const port = Number(process.env.PORT ?? '4174') || 4174
 const combinedSceneSchemaPath = path.resolve(rootDir, 'server/schemas/comic-generation-with-scene.schema.json')
 const scriptSchemaPath = path.resolve(rootDir, 'server/schemas/comic-generation.schema.json')
 const jobsDir = path.resolve(rootDir, 'server-data/generations')
@@ -135,6 +139,7 @@ const requestedMediaBackend = normalizeMediaBackend(requestedMediaBackendRaw)
 const codexModel = process.env.CODEX_MODEL?.trim() || 'gpt-5.3-codex-spark'
 const codexReasoningEffort = process.env.CODEX_REASONING_EFFORT?.trim() || 'low'
 const geminiApiKey = process.env.GEMINI_API_KEY?.trim() ?? ''
+const geminiTextModel = process.env.GEMINI_TEXT_MODEL?.trim() || 'gemini-2.5-flash'
 const geminiBaseUrl =
   (process.env.GEMINI_BASE_URL?.trim() || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/u, '')
 const geminiImageModel = resolveGeminiImageModel()
@@ -309,7 +314,7 @@ app.delete('/api/generations/:jobId', async (request, response) => {
 
 app.listen(port, '0.0.0.0', async () => {
   await fs.mkdir(jobsDir, { recursive: true })
-  console.log(`Codex generation API listening on http://127.0.0.1:${port}`)
+console.log(`Generation API listening on http://127.0.0.1:${port}`)
 })
 
 function normalizeMediaBackend(value: string | undefined) {
@@ -498,7 +503,9 @@ async function runJob(jobId: string) {
     message:
       job.mediaBackend === 'codex-scene'
         ? 'Codex CLI로 네 컷 스크립트와 장면 JSON을 함께 설계하고 있습니다.'
-        : 'Codex CLI로 네 컷 스크립트와 장면 구조를 생성하고 있습니다.',
+        : job.mediaBackend === 'gemini-image'
+          ? 'Gemini로 네 컷 스크립트와 컷 구성을 생성하고 있습니다.'
+          : 'Codex CLI로 네 컷 스크립트와 장면 구조를 생성하고 있습니다.',
   })
 
   try {
@@ -521,6 +528,24 @@ async function runJob(jobId: string) {
     }
 
     const prompt = buildPrompt(job.request, job.mediaBackend)
+
+    if (job.mediaBackend === 'gemini-image') {
+      await runGeminiStructured<RawCodexResult>({
+        jobId,
+        prompt,
+        schemaPath: scriptSchemaPath,
+        outputPath: outputFile(jobId),
+        logPath: logFile(jobId),
+      })
+
+      if (isJobCancelled(jobId)) {
+        return
+      }
+
+      await finalizeJob(jobId, job.request)
+      return
+    }
+
     await runCodexStructured<RawCodexResult>({
       jobId,
       prompt,
@@ -539,14 +564,14 @@ async function runJob(jobId: string) {
       return
     }
 
-    await updateJob(jobId, {
-      status: 'failed',
-      message:
-        error instanceof Error && error.message.includes('Codex CLI')
-          ? error.message
-          : '생성 결과를 정리하는 중 문제가 생겼습니다.',
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-    })
+      await updateJob(jobId, {
+        status: 'failed',
+        message:
+          error instanceof Error && (error.message.includes('Codex CLI') || error.message.includes('Gemini'))
+            ? error.message
+            : '생성 결과를 정리하는 중 문제가 생겼습니다.',
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
+      })
   }
 }
 
@@ -720,6 +745,102 @@ async function runCodexStructured<T>({
     child.stdin.write(prompt)
     child.stdin.end()
   })
+}
+
+async function runGeminiStructured<T>({
+  jobId,
+  prompt,
+  schemaPath,
+  outputPath,
+  logPath,
+}: {
+  jobId: string
+  prompt: string
+  schemaPath: string
+  outputPath: string
+  logPath: string
+}) {
+  const schema = await fs.readFile(schemaPath, 'utf8')
+  const attemptLogs: string[] = []
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const retryHint =
+      attempt === 1
+        ? ''
+        : `\n\n이전 응답은 스키마를 만족하지 못했다. 특히 panels는 정확히 4개의 객체를 가진 배열이어야 한다. 각 panel은 별도 객체여야 하며 쉼표와 중괄호를 정확히 닫아라. 설명 없이 JSON만 다시 반환하라.`
+
+    const response = await geminiFetch(
+      `/models/${encodeURIComponent(geminiTextModel)}:generateContent`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `${prompt}\n\n반드시 아래 JSON Schema를 만족하는 application/json 본문만 반환하라.\n${schema}${retryHint}`,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: 'application/json',
+          },
+        }),
+      },
+    )
+
+    if (isJobCancelled(jobId)) {
+      throw new JobCancelledError()
+    }
+
+    const payload = (await response.json()) as GeminiGenerateContentResponse
+    const rawOutput = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('\n').trim()
+    attemptLogs.push(`--- attempt ${attempt} ---\n${rawOutput || JSON.stringify(payload, null, 2)}`)
+
+    if (!rawOutput) {
+      lastError = new Error('Gemini 스크립트 생성 결과에서 JSON 본문을 찾지 못했습니다.')
+      continue
+    }
+
+    try {
+      const parsed = parseJsonOutput<T>(rawOutput)
+      validateStructuredScriptResult(parsed)
+      await fs.writeFile(logPath, attemptLogs.join('\n\n'))
+      await fs.writeFile(outputPath, JSON.stringify(parsed, null, 2))
+      return parsed
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Gemini 스크립트 결과 검증에 실패했습니다.')
+    }
+  }
+
+  await fs.writeFile(logPath, attemptLogs.join('\n\n'))
+  throw lastError ?? new Error('Gemini 스크립트 생성에 실패했습니다.')
+}
+
+function validateStructuredScriptResult(value: unknown): asserts value is RawCodexResult {
+  if (!value || typeof value !== 'object') {
+    throw new Error('Gemini 스크립트 결과가 객체 형식이 아닙니다.')
+  }
+
+  const candidate = value as Partial<RawCodexResult>
+
+  if (!Array.isArray(candidate.panels) || candidate.panels.length !== 4) {
+    throw new Error('Gemini 스크립트 결과의 panel 수가 4개가 아닙니다.')
+  }
+
+  for (const [index, panel] of candidate.panels.entries()) {
+    if (!panel || typeof panel !== 'object') {
+      throw new Error(`Gemini 스크립트 결과의 ${index + 1}번째 panel이 객체가 아닙니다.`)
+    }
+
+    const rawPanel = panel as Partial<RawCodexPanel>
+
+    if (!rawPanel.beat || !rawPanel.beatLabel || !rawPanel.caption || !rawPanel.dialogue || !rawPanel.emotion || !rawPanel.emotionKey || !rawPanel.scene || !rawPanel.artPrompt) {
+      throw new Error(`Gemini 스크립트 결과의 ${index + 1}번째 panel 필드가 부족합니다.`)
+    }
+  }
 }
 
 function buildPrompt(request: DraftInput, mediaBackend?: MediaBackend) {
