@@ -44,6 +44,26 @@ npm run dev
 npm run dev
 ```
 
+특정 포트로 로컬 실행하려면 `run.sh`를 쓰는 것이 가장 간단합니다.
+
+```bash
+chmod +x run.sh
+WEB_PORT=4099 API_PORT=5174 ./run.sh
+```
+
+위 명령은 다음처럼 동작합니다.
+
+- 웹 앱: `http://localhost:4099`
+- 로컬 API: `http://localhost:5174/api/health`
+- 웹 앱은 `/api`, `/generated` 요청을 `5174`로 프록시합니다.
+
+직접 명령으로 실행하고 싶다면 아래처럼 나눠서 실행할 수도 있습니다.
+
+```bash
+PORT=5174 npm run dev:api
+VITE_API_PORT=5174 npx vite --host 0.0.0.0 --port 4099
+```
+
 기본 접속 주소:
 
 - 웹 앱: [http://localhost:4173](http://localhost:4173)
@@ -160,9 +180,15 @@ OPENAI_IMAGE_SIZE=1024x1536
 - `PORT`
   - 서버 API 포트로 사용합니다.
   - 기본값: `4174`
+- `API_PORT`
+  - `run.sh`에서 API 포트를 지정할 때 쓰는 셸 변수입니다.
+  - 내부적으로 `PORT`로 전달됩니다.
 - `VITE_API_PORT`
   - 프런트 dev 서버가 프록시할 API 대상 포트입니다.
   - 기본값: `4174`
+- `WEB_PORT`
+  - `run.sh`에서 웹 포트를 지정할 때 쓰는 셸 변수입니다.
+  - 기본값: `4173`
 - 웹 dev 서버 포트를 바꾸고 싶다면 `npm run dev:web -- --port 4099`처럼 실행 인자로 덮어쓰는 것이 가장 확실합니다.
 
 ### Codex 설정
