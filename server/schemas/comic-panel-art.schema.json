@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["svg"],
+  "properties": {
+    "svg": {
+      "type": "string",
+      "minLength": 32
+    }
+  }
+}

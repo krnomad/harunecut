@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "summary", "moodLine", "resolvedTone", "characterAnchor", "panels"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "moodLine": { "type": "string", "minLength": 1 },
+    "characterAnchor": { "type": "string", "minLength": 1 },
+    "resolvedTone": {
+      "type": "string",
+      "enum": ["cute", "comic", "warm", "plain", "comfort"]
+    },
+    "panels": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "beat",
+          "beatLabel",
+          "caption",
+          "dialogue",
+          "emotion",
+          "emotionKey",
+          "scene",
+          "artPrompt",
+          "svg"
+        ],
+        "properties": {
+          "beat": {
+            "type": "string",
+            "enum": ["setup", "build", "twist", "ending"]
+          },
+          "beatLabel": { "type": "string", "minLength": 1 },
+          "caption": { "type": "string", "minLength": 1 },
+          "dialogue": { "type": "string", "minLength": 1 },
+          "emotion": { "type": "string", "minLength": 1 },
+          "emotionKey": {
+            "type": "string",
+            "enum": ["joy", "tired", "awkward", "calm", "comfort", "proud"]
+          },
+          "scene": { "type": "string", "minLength": 1 },
+          "artPrompt": { "type": "string", "minLength": 1 },
+          "svg": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

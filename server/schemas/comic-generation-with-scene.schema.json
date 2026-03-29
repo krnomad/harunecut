@@ -1,0 +1,99 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "summary", "moodLine", "resolvedTone", "characterAnchor", "panels"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "moodLine": { "type": "string", "minLength": 1 },
+    "characterAnchor": { "type": "string", "minLength": 1 },
+    "resolvedTone": {
+      "type": "string",
+      "enum": ["cute", "comic", "warm", "plain", "comfort"]
+    },
+    "panels": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "beat",
+          "beatLabel",
+          "caption",
+          "dialogue",
+          "emotion",
+          "emotionKey",
+          "scene",
+          "artPrompt",
+          "sceneSpec"
+        ],
+        "properties": {
+          "beat": {
+            "type": "string",
+            "enum": ["setup", "build", "twist", "ending"]
+          },
+          "beatLabel": { "type": "string", "minLength": 1 },
+          "caption": { "type": "string", "minLength": 1 },
+          "dialogue": { "type": "string", "minLength": 1 },
+          "emotion": { "type": "string", "minLength": 1 },
+          "emotionKey": {
+            "type": "string",
+            "enum": ["joy", "tired", "awkward", "calm", "comfort", "proud"]
+          },
+          "scene": { "type": "string", "minLength": 1 },
+          "artPrompt": { "type": "string", "minLength": 1 },
+          "sceneSpec": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "setting",
+              "framing",
+              "shot",
+              "action",
+              "weather",
+              "accent",
+              "backgroundDetails"
+            ],
+            "properties": {
+              "setting": {
+                "type": "string",
+                "enum": ["bedroom", "cafe", "office", "street", "transit", "bathroom", "home", "park"]
+              },
+              "framing": {
+                "type": "string",
+                "enum": ["left", "center", "right"]
+              },
+              "shot": {
+                "type": "string",
+                "enum": ["close", "mid", "wide"]
+              },
+              "action": {
+                "type": "string",
+                "enum": ["running", "sitting", "walking", "standing", "slumping", "reaching", "resting", "celebrating"]
+              },
+              "weather": {
+                "type": "string",
+                "enum": ["indoor", "clear", "rain", "cloudy"]
+              },
+              "accent": {
+                "type": "string",
+                "enum": ["none", "speed", "steam", "sparkle", "glow"]
+              },
+              "backgroundDetails": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 3,
+                "items": {
+                  "type": "string",
+                  "enum": ["window", "clock", "desk", "lamp", "plant", "shelf", "door", "sign", "cloud", "puddle", "curtain", "tile"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
