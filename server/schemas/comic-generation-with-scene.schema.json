@@ -1,12 +1,13 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["title", "summary", "moodLine", "resolvedTone", "characterAnchor", "panels"],
+  "required": ["title", "summary", "moodLine", "resolvedTone", "characterAnchor", "continuityAnchor", "panels"],
   "properties": {
     "title": { "type": "string", "minLength": 1 },
     "summary": { "type": "string", "minLength": 1 },
     "moodLine": { "type": "string", "minLength": 1 },
     "characterAnchor": { "type": "string", "minLength": 1 },
+    "continuityAnchor": { "type": "string", "minLength": 1 },
     "resolvedTone": {
       "type": "string",
       "enum": ["cute", "comic", "warm", "plain", "comfort"]

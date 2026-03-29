@@ -123,14 +123,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const localRunId = crypto.randomUUID()
 
     startTransition(() => {
-      setGeneration({
-        runId: localRunId,
-        request,
-        status: 'running',
-        step: 'script',
-        message: 'Codex CLI 작업을 시작하는 중입니다.',
-        startedAt,
-      })
+        setGeneration({
+          runId: localRunId,
+          request,
+          status: 'running',
+          step: 'script',
+          message: '생성 작업을 시작하는 중입니다.',
+          startedAt,
+        })
     })
 
     try {
@@ -201,7 +201,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         request,
         status: 'failed',
         step: 'script',
-        message: 'Codex CLI 작업을 시작하지 못했습니다.',
+        message: '생성 작업을 시작하지 못했습니다.',
         startedAt,
         error: error instanceof Error ? error.message : '알 수 없는 오류',
       })

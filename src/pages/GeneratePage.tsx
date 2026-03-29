@@ -33,8 +33,8 @@ export function GeneratePage() {
     <section className="screen">
       <ScreenHeader
         eyebrow="생성 진행"
-        title="Codex가 컷을 설계하고 실제 생성 단계를 이어갑니다"
-        description="지금은 서버가 현재 단계를 직접 내려주고, 생성 중에는 로딩 오버레이와 이탈 방지까지 함께 동작합니다."
+        title="현재 백엔드가 컷 설계와 이미지 생성 단계를 이어가고 있습니다"
+        description="서버가 현재 단계를 직접 내려주고, 생성 중에는 로딩 오버레이와 이탈 방지까지 함께 동작합니다."
       />
 
       {generation.status === 'failed' ? (

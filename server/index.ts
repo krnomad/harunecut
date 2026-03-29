@@ -61,6 +61,7 @@ interface RawCodexResult {
   moodLine: string
   resolvedTone: ResolvedTone
   characterAnchor: string
+  continuityAnchor: string
   panels: RawCodexPanel[]
 }
 
@@ -70,6 +71,7 @@ interface RawCodexComicWithSceneResult {
   moodLine: string
   resolvedTone: ResolvedTone
   characterAnchor: string
+  continuityAnchor: string
   panels: RawCodexScenePanel[]
 }
 
@@ -830,6 +832,10 @@ function validateStructuredScriptResult(value: unknown): asserts value is RawCod
     throw new Error('Gemini 스크립트 결과의 panel 수가 4개가 아닙니다.')
   }
 
+  if (!candidate.characterAnchor || !candidate.continuityAnchor) {
+    throw new Error('Gemini 스크립트 결과의 anchor 필드가 부족합니다.')
+  }
+
   for (const [index, panel] of candidate.panels.entries()) {
     if (!panel || typeof panel !== 'object') {
       throw new Error(`Gemini 스크립트 결과의 ${index + 1}번째 panel이 객체가 아닙니다.`)
@@ -865,10 +871,16 @@ ${request.toneSelection}
 - resolvedTone은 cute, comic, warm, plain, comfort 중 하나여야 한다.
 - toneSelection이 auto이면 가장 어울리는 resolvedTone을 선택한다.
 - characterAnchor는 모든 컷에서 동일하게 유지할 주인공의 외형 앵커다. 성별을 단정하지 말고, 머리/옷/분위기처럼 이미지 모델이 재사용하기 쉬운 시각 정보로 20자 안팎으로 작성한다.
+- continuityAnchor는 네 컷 전체에서 공유할 시각적 연속성 앵커다. 주인공의 얼굴/헤어/옷 색, 반복 등장하는 사물·동물, 배경 톤, 시간대, 날씨, 조명 분위기를 한 줄로 고정해서 적는다.
 - scene은 컷에서 보이는 핵심 장면을 간결하게 적는다.
 - artPrompt는 실제 이미지 또는 Sora 썸네일 생성에 그대로 쓸 수 있게 구도, 배경, 감정, 행동을 자연어로 구체적으로 작성한다.
+- artPrompt는 1:1 정사각형 컷을 기준으로, 작은 모바일 화면에서도 주인공 표정과 핵심 사물이 잘 보이게 구성한다.
 - 이미지 안에 말풍선, 자막, 워터마크, UI 텍스트는 절대 넣지 않는다.
 - emotionKey는 joy, tired, awkward, calm, comfort, proud 중 하나만 사용한다.
+- 네 컷 전체에서 주인공 얼굴형, 헤어스타일, 의상 색, 그림체, 선 굵기, 색감은 바뀌면 안 된다.
+- 반복 등장하는 배경, 사물, 음식, 반려동물은 같은 종류·색·형태로 유지한다.
+- 장면 전환이 있더라도 같은 하루 안에서 이어지는 것처럼 시간대, 조명, 날씨, 분위기의 연속성을 유지한다.
+- 컷마다 카메라만 달라질 수 있고, 캐릭터 디자인과 세계관은 다시 발명하지 마라.
 - ${mediaBackend === 'codex-scene' ? '각 panel에는 sceneSpec 객체를 반드시 포함한다.' : 'sceneSpec 필드는 넣지 않는다.'}
 ${
   mediaBackend === 'codex-scene'
@@ -934,6 +946,7 @@ async function toComicDraft(
     const media = await createPanelMedia({
       jobId,
       characterAnchor: result.characterAnchor.trim(),
+      continuityAnchor: result.continuityAnchor.trim(),
       panel,
       panelIndex: index,
       resolvedTone: result.resolvedTone,
@@ -1046,6 +1059,7 @@ async function toComicDraftFromEmbeddedScene(
 async function createPanelMedia({
   jobId,
   characterAnchor,
+  continuityAnchor,
   panel,
   panelIndex,
   resolvedTone,
@@ -1056,6 +1070,7 @@ async function createPanelMedia({
 }: {
   jobId: string
   characterAnchor: string
+  continuityAnchor: string
   panel: RawCodexPanel
   panelIndex: number
   resolvedTone: ResolvedTone
@@ -1066,6 +1081,7 @@ async function createPanelMedia({
 }) {
   const visualPrompt = buildVisualPrompt({
     characterAnchor,
+    continuityAnchor,
     panel,
     panelIndex,
     resolvedTone,
@@ -1088,11 +1104,13 @@ async function createPanelMedia({
 
 function buildVisualPrompt({
   characterAnchor,
+  continuityAnchor,
   panel,
   panelIndex,
   resolvedTone,
 }: {
   characterAnchor: string
+  continuityAnchor: string
   panel: RawCodexPanel
   panelIndex: number
   resolvedTone: ResolvedTone
@@ -1100,11 +1118,15 @@ function buildVisualPrompt({
   return [
     `Panel ${panelIndex + 1} of 4 for a Korean diary comic.`,
     `One consistent protagonist: ${characterAnchor}.`,
+    `Global continuity anchor: ${continuityAnchor}.`,
     `Scene: ${panel.scene}.`,
     `Emotion: ${panel.emotion}.`,
     `Action: ${panel.artPrompt}.`,
     `Style: ${toneDirections[resolvedTone]}.`,
-    'Simple mobile-friendly composition with empty room for top and bottom overlay text.',
+    'Keep the same protagonist face, hairstyle, outfit colors, recurring props, animals, background mood, and lighting palette across all 4 panels.',
+    'Compose for a square 1:1 panel that must read clearly on a small mobile screen.',
+    'Keep the subject large enough to read immediately with a clean silhouette and uncluttered background.',
+    'Do not reserve empty text bands inside the image; captions and dialogue are rendered outside the art.',
     'No speech bubbles, captions, subtitles, logos, or interface text.',
   ].join(' ')
 }
