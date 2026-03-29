@@ -2,11 +2,24 @@
 
 짧은 일기를 4컷 만화로 바꿔 저장하고 공유하는 모바일 우선 MVP입니다.
 
-현재 생성 파이프라인은 세 가지 축으로 동작합니다.
+현재 생성 파이프라인은 기본 Codex 경로와 외부 이미지 API 경로를 함께 지원합니다.
 
 - `codex-scene`: Codex CLI가 4컷 스크립트와 `scene JSON`을 만들고, 서버가 이를 바탕으로 PNG 컷을 합성합니다.
-- `gemini-image`: Codex CLI가 컷 설계를 만들고, Gemini 이미지 모델로 실제 컷 이미지를 생성합니다.
+- `gemini-image`: Gemini 텍스트 모델이 4컷 스크립트를 만들고, Gemini 이미지 모델로 실제 컷 이미지를 생성합니다.
 - `openai-image` / `sora`: Codex CLI가 컷 설계를 만들고, OpenAI 이미지 또는 Sora 썸네일 생성으로 연결합니다.
+
+## 현재 지원하는 백엔드
+
+- 기본값: `codex-scene`
+- 대체 API 백엔드: `gemini-image`, `openai-image`, `sora`
+- 테스트/개발용: `mock`
+- Gemini 별칭: `gemini`, `nano-banana`, `nano-banana-2`, `nano-banana-pro`
+
+참고:
+
+- 현재 문서와 `.env.example`에 포함된 대체 API는 **실제로 코드에서 지원하는 값만** 적어둡니다.
+- `midjourney` 같은 이름은 아직 내장 백엔드로 구현되어 있지 않습니다.
+- 나노 바나나 계열(`nano-banana*`)은 Gemini 이미지 경로의 별칭입니다.
 
 ## 실행 방법
 
@@ -54,6 +67,58 @@ CODEX_MODEL=gpt-5.3-codex-spark
 CODEX_REASONING_EFFORT=low
 ```
 
+## 빠른 설정 예시
+
+### 1. 기본 로컬 모드 (`codex-scene`)
+
+외부 이미지 API 키 없이 가장 빨리 확인할 때 권장합니다.
+
+```dotenv
+MEDIA_BACKEND=codex-scene
+CODEX_MODEL=gpt-5.3-codex-spark
+CODEX_REASONING_EFFORT=low
+```
+
+### 2. Gemini / Nano Banana 이미지 모드
+
+현재 나노 바나나 계열 API 구매 후 실제 이미지 생성까지 확인한 경로입니다.
+
+```dotenv
+MEDIA_BACKEND=gemini-image
+GEMINI_API_KEY=your_key_here
+GEMINI_TEXT_MODEL=gemini-2.5-flash
+GEMINI_IMAGE_MODEL=gemini-3.1-flash-image-preview
+GEMINI_IMAGE_ASPECT_RATIO=1:1
+GEMINI_IMAGE_SIZE=2K
+```
+
+별칭을 쓰려면 다음처럼 둘 수도 있습니다.
+
+```dotenv
+MEDIA_BACKEND=nano-banana
+GEMINI_API_KEY=your_key_here
+GEMINI_TEXT_MODEL=gemini-2.5-flash
+```
+
+### 3. OpenAI 이미지 모드
+
+```dotenv
+MEDIA_BACKEND=openai-image
+OPENAI_API_KEY=your_key_here
+OPENAI_IMAGE_MODEL=gpt-image-1.5
+OPENAI_IMAGE_SIZE=1024x1536
+```
+
+### 4. Sora 썸네일 모드
+
+```dotenv
+MEDIA_BACKEND=sora
+OPENAI_API_KEY=your_key_here
+OPENAI_VIDEO_MODEL=sora-2
+OPENAI_VIDEO_SECONDS=4
+OPENAI_VIDEO_SIZE=720x1280
+```
+
 ## 환경 변수 가이드
 
 앱은 `.env.local`을 우선 읽습니다. 아래 예시를 복사해 시작하는 것을 권장합니다.
@@ -65,6 +130,7 @@ CODEX_MODEL=gpt-5.3-codex-spark
 CODEX_REASONING_EFFORT=low
 
 GEMINI_API_KEY=
+GEMINI_TEXT_MODEL=gemini-2.5-flash
 GEMINI_IMAGE_MODEL=gemini-3.1-flash-image-preview
 GEMINI_IMAGE_ASPECT_RATIO=1:1
 GEMINI_IMAGE_SIZE=2K
@@ -84,10 +150,20 @@ OPENAI_IMAGE_SIZE=1024x1536
 - `MEDIA_BACKEND`
   - 추천값: `codex-scene`
   - 지원값: `codex-scene`, `mock`, `gemini-image`, `openai-image`, `sora`
-  - 별칭도 지원합니다: `codex`, `codex-png`, `gemini`, `nano-banana`, `nano-banana-2`, `nano-banana-pro`
+  - 별칭도 지원합니다: `codex`, `codex-png`, `codex-svg`, `svg`, `gemini`, `nano-banana`, `nano-banana-2`, `nano-banana-pro`
 - `OPENAI_MEDIA_BACKEND`
   - 예전 호환용입니다.
   - 가능하면 `MEDIA_BACKEND`를 사용하세요.
+
+### 개발 포트 설정
+
+- `PORT`
+  - 서버 API 포트로 사용합니다.
+  - 기본값: `4174`
+- `VITE_API_PORT`
+  - 프런트 dev 서버가 프록시할 API 대상 포트입니다.
+  - 기본값: `4174`
+- 웹 dev 서버 포트를 바꾸고 싶다면 `npm run dev:web -- --port 4099`처럼 실행 인자로 덮어쓰는 것이 가장 확실합니다.
 
 ### Codex 설정
 
@@ -102,11 +178,19 @@ OPENAI_IMAGE_SIZE=1024x1536
 
 Gemini를 쓰려면 최소한 `GEMINI_API_KEY`가 필요합니다.
 
+- `GEMINI_TEXT_MODEL`
+  - 기본값: `gemini-2.5-flash`
+  - 4컷 스크립트 JSON 생성을 담당합니다.
+- `GEMINI_IMAGE_MODEL`
+  - 기본값: `gemini-3.1-flash-image-preview`
+  - 실제 컷 이미지 생성을 담당합니다.
+
 가장 간단한 예시:
 
 ```dotenv
 MEDIA_BACKEND=gemini-image
 GEMINI_API_KEY=your_key_here
+GEMINI_TEXT_MODEL=gemini-2.5-flash
 GEMINI_IMAGE_MODEL=gemini-3.1-flash-image-preview
 GEMINI_IMAGE_ASPECT_RATIO=1:1
 GEMINI_IMAGE_SIZE=2K
@@ -164,9 +248,15 @@ OPENAI_VIDEO_SIZE=720x1280
 
 ### 2. `gemini-image`
 
-1. Codex CLI가 4컷 스크립트와 이미지 프롬프트를 생성합니다.
+1. Gemini 텍스트 모델이 4컷 스크립트와 이미지 프롬프트를 생성합니다.
 2. 서버가 Gemini 이미지 모델에 컷별 프롬프트를 전달합니다.
 3. Gemini가 반환한 이미지 바이트를 컷 파일로 저장합니다.
+
+### 3. `openai-image` / `sora`
+
+1. Codex CLI가 4컷 스크립트와 컷별 프롬프트를 생성합니다.
+2. 서버가 OpenAI 이미지 또는 Sora API에 컷별 요청을 보냅니다.
+3. 반환된 이미지/썸네일을 컷 파일로 저장합니다.
 
 ## QA 체크 포인트
 
@@ -179,5 +269,6 @@ OPENAI_VIDEO_SIZE=720x1280
 ## 참고
 
 - 로컬 기본 모드는 `codex-scene`입니다.
+- `.env.example`에는 기본값과 대체 API 설정 예시를 함께 적어두었습니다.
 - 과거에 생성된 `codex-svg` 결과는 읽을 수 있지만, 새 기본 생성 경로는 PNG 합성입니다.
 - 생성 실패 시 원문 텍스트는 프런트 상태와 서버 작업 파일에 그대로 남습니다.
